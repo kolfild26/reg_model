@@ -1,0 +1,157 @@
+---
+title: "Mtcars data survey"
+
+output: html_document
+---
+_Data Science / Regression Models / Course Project_   
+_Andrey Komrakov_  
+_May 27 2016_  
+_Source files [https://github.com/kolfild26/regmodel.git](https://github.com/kolfild26/regmodel.git)_
+
+### Abstract
+
+This survey is aimed to explore the Motor Trend Car Road Tests data (_Mtcars_). We are investigating the influence of a transmission type (automatic or manual) on _MPG_ - the miles per gallon, taking into account the other car characteristics (_Number of cylinders, Gross horsepower,Rear axle ratio, Weight, Number of forward gears, etc._). 
+
+We are trying to answer the following questions: 
+
+1. Is an automatic or manual transmission better for MPG
+2. Quantify the MPG difference between automatic and manual transmissions
+
+We will use the _**R**_ language for the data processing, getting statistics and the linear model creation.
+
+### Exploratory analysis
+
+```{r settings, echo=FALSE,results='hide', message=F, warning=F}
+library(ggplot2)
+library(GGally)
+library(car)
+library(knitr)
+data(mtcars)
+Sys.setlocale("LC_TIME", "English")
+```
+First, look at the dataset we are going to work with.
+```{r}
+head(mtcars,5)
+```
+
+```{r, results='hide'}
+range(mtcars$mpg); mean(mtcars$mpg)
+```
+
+```{r, echo=FALSE}
+rng <- range(mtcars$mpg)
+m <- round(mean(mtcars$mpg),1)
+```
+
+We see that the variable of intererst (outcome) **mpg** is of a number type. It varies between [`r rng`] and have a mean of `r m`.
+And **am** is a factor binary variable - _0_ - automatic, _1_ - manual.
+
+Now, let's making _t-test_ diagnostics to compare two trends (manual / automatic transmission) and find out, if there is any significant difference between them. 
+
+```{r }
+t.test(mtcars[mtcars$am==1,]$mpg , mtcars[mtcars$am == 0,]$mpg, alternative="two.sided")[3]
+```
+```{r , echo=FALSE}
+tt <- t.test(mtcars[mtcars$am==1,]$mpg , mtcars[mtcars$am==0,]$mpg, alternative="two.sided")[3]
+pv <- round(as.numeric(tt),3)
+```
+
+A small _p-value_ (typically $\leq 0.05$) indicates strong evidence against the null hypothesis. Since we get _p-value_ = `r pv`, we can assume the significant influence of a transmissiom type on the miles per gallon characteristic. Also, the same can be seen from the plot (see Appendix _picture 1._).
+
+Let's go further and check this hypothesis based on the fact that we have more than one variable which can change an outcome.
+
+### Multivariable modeling
+
+First, find the variables which have a significant (greather than) correlation with _**mpg**_:
+
+```{r }
+corcoeff <- cor(mtcars$mpg, mtcars)
+corcoeff[ ,abs(corcoeff) > 0.5][-1]
+```
+```{r, echo=FALSE}
+vrbls <- rownames(as.data.frame(corcoeff[ ,abs(corcoeff) > 0.5][-1]))
+```
+
+So, _**`r vrbls`**_ might be a basis for a linear model.  
+Check that the other variables do not tell us more about _**mpg**_ variance. We do this through the _**anova()**_ function which can compare the different linear models. based on their impacts in the variance explanation.
+
+```{r}
+fit01 <- lm(mpg ~ cyl + disp + hp + drat + wt + vs + factor(am),data = mtcars)
+fit02 <- lm(mpg ~ cyl + disp + hp + drat + wt + vs + factor(am) + qsec + gear + carb,data = mtcars)
+anova(fit01, fit02)
+```
+
+According to the _p-value_ interpretation ($> 0.05$) we can reject $H_0$, and conclude that _**qsec,gear,carb**_ are not significant in terms of variance explanation
+
+Remember, _**anova()**_ implies the normatily of the residuals.
+
+```{r}
+c(shapiro.test(fit01$residuals)$p,shapiro.test(fit02$residuals)$p)
+```
+The _**p**_ values confirm normality of both model residuals, hence the anova results are comprehended.
+
+Now, when we found the scope of parameters which vary _**mpg**_ the most, we can test the different factor conbinations to find out whether it's possible to shrink the scope of variables in the model.
+
+Again, through _**anova()**_ we see that the model _**lm(mpg ~ factor(am) + wt + cyl,data = mtcars)**_ explains the most part of the _**mpg**_ variance.
+```{r}
+fit0 <- lm(mpg ~ factor(am) ,data = mtcars)
+fit1 <- lm(mpg ~ factor(am) + wt ,data = mtcars)
+fit2 <- lm(mpg ~ factor(am) + wt + cyl,data = mtcars)
+fit3 <- lm(mpg ~ factor(am) + wt + cyl + hp,data = mtcars)
+fit4 <- lm(mpg ~ factor(am) + wt + cyl + hp + disp,data = mtcars)
+fit5 <- lm(mpg ~ factor(am) + wt + cyl + hp + disp + drat,data = mtcars)
+fit6 <- lm(mpg ~ factor(am) + wt + cyl + hp + disp + drat + vs,data = mtcars)
+```
+
+```{r}
+residM <- cbind(resid(fit0),resid(fit1),resid(fit2),resid(fit3),
+                resid(fit4),resid(fit5),resid(fit6))
+apply(residM,2, function(x) shapiro.test(x)$p.value )
+```
+All the residuals are normally distributed.
+
+```{r}
+anova(fit0,fit1,fit2,fit3,fit4,fit5,fit6)[6]
+```
+
+A residuals vs. fits plot (see Appendix _picture 2_) visually confirm that the _**lm()**_ function is being applied properly (no visible unexplained variance).  
+
+```{r, echo=FALSE }
+r_sq <- round(summary(fit2)$r.squared,2)
+```
+```{r, results='hide'}
+summary(fit2)$r.squared
+```
+According to $R^2$ criteria, our model explains `r r_sq`% of a total variance.
+
+From the model summary it can be easily seen that the difference between the manual and automatic transmision in their influence in _**mpg**_ is significant in framework of our model.
+
+```{r}
+summary(fit2 <- lm(mpg ~ factor(am) + wt + cyl - 1 ,data = mtcars))$coeff
+```
+
+```{r, echo=FALSE}
+tr_dif <- round(summary(fit2)$coeff[2] - summary(fit2)$coeff[1],2)
+```
+
+### Conclusion
+
+Having proceed the comparison between two types of transmission we detected a possible difference in thier influence on _**mpg**_. Futher, the linear model approved that the same takes place even in presence of the other factors.  
+The _**lm()**_ analysis also gave as an estimation of that difference. _**Mpg**_ for the cars with manual transmission is greater on **`r tr_dif`** than for the cars with automatic transmission.
+
+### Appendix
+
+picture 1.
+
+```{r }
+ggplot(mtcars, aes(am, mpg, fill = factor(am)) ) +
+     geom_boxplot(data = mtcars, aes(x=factor(am, labels = c("Automatic", "Manual")), mpg)) +
+     geom_point  (data = mtcars, aes(x=factor(am, labels = c("Automatic", "Manual")), mpg))
+```
+
+picture 2.
+
+```{r}
+par(mfrow = c(2,2))
+plot(lm(mpg ~ am + wt + cyl,data = mtcars))
+```
