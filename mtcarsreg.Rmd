@@ -137,7 +137,7 @@ tr_dif <- round(summary(fit2)$coeff[2] - summary(fit2)$coeff[1],2)
 ### Conclusion
 
 Having proceed the comparison between two types of transmission we detected a possible difference in thier influence on _**mpg**_. Futher, the linear model approved that the same takes place even in presence of the other factors.  
-The _**lm()**_ analysis also gave as an estimation of that difference. _**Mpg**_ for the cars with manual transmission is greater on **`r tr_dif`** than for the cars with automatic transmission.
+The _**lm()**_ analysis also gave as an estimation of that difference. _**Mpg**_ for the cars with manual transmission is greater on **`r tr_dif`** than for the cars with automatic transmission. Thus manual transmission is better than automatic.
 
 ### Appendix
 
